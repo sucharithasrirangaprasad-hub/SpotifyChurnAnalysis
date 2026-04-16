@@ -1,0 +1,11 @@
+# System files
+.DS_Store
+**/.DS_Store
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+**/.ipynb_checkpoints/
+
+# Specific folder-level ignores
+approachWithPolynomialFeatures/.DS_Store
+approachWithPolynomialFeatures/.ipynb_checkpoints/
