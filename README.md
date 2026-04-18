@@ -59,3 +59,58 @@ This strategy was built on the hypothesis that churn behavior isn't always linea
 After observing the high dimensionality of the Polynomial approach, a second strategy was tested to see if "less is more."
 * **Technique:** Pruned the feature set down to the **22 most impactful features** identified during initial exploration.
 * **Goal:** To reduce noise, prevent potential overfitting from the polynomial expansion, and create a more computationally efficient model for real-time deployment.
+
+### 4. Modeling Procedure
+
+The modeling phase was executed in two parallel tracks for both the **Polynomial** and **Lean** feature strategies. By maintaining a consistent evaluation pipeline, we were able to isolate the impact of feature engineering on model performance.
+
+#### **Phase I: Baseline Modeling**
+Before testing complex architectures, we established a "performance floor" using Logistic Regression.
+
+* **Logistic Regression with LASSO (L1 Regularization):** We utilized LASSO to perform automated feature selection. By penalizing less impactful coefficients, the model effectively "zeroed out" noise, which was particularly useful for the high-dimensional Polynomial dataset.
+
+* **Hyperparameter Tuning:** We utilized `GridSearchCV` to optimize the regularization strength (`C`). This ensured that our baseline was not just a "default" model, but the strongest possible linear representation of the data.
+
+#### **Phase II: Advanced Modeling**
+To capture non-linear patterns that a linear regression might miss, we deployed six advanced machine learning architectures SVM, Gradient Boosting, Ada Boosting, Decision Tree, KNN, and Random Forest.
+
+#### **Optimization & Evaluation Strategy**
+
+For every model in the advanced suite, we followed a standardized protocol:
+
+* **GridSearchCV Implementation:** We performed an exhaustive search over hyperparameters (such as `max_depth`, `n_estimators`, and `kernel` types) to find the "Best Estimator" for each architecture.
+
+* **Primary Metric (F1-Score):** Because our dataset is imbalanced (74/26), we directed `GridSearchCV` to optimize for the **F1-Score**. This prevented the models from simply guessing the majority class to achieve high accuracy.
+
+* **Model Comparison:** After tuning, we extracted the performance metrics of every "Best Estimator" and compiled them into a master comparison table to select the final deployment candidate.
+
+### 5. Summary of Results & Comparison
+
+This project evaluated two distinct data strategies. Below is the performance breakdown of our first iteration, which utilized **Polynomial Features (Degree 2)** to capture complex, non-linear interactions.
+
+#### Strategy A: Polynomial Features Results
+
+In this iteration, we expanded the dataset significantly. While we expected the increased dimensionality to provide more "signal," the results showed a plateau in predictive power.
+
+| Model | F1-Score | AUC | Accuracy | Precision | Recall |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Decision Tree** | **0.3585** | 0.5300 | 0.4800 | 0.2750 | 0.5140 |
+| **Balanced LASSO (Baseline)** | 0.3580 | **0.5800** | 0.5260 | 0.2740 | 0.5140 |
+| **Gradient Boosting** | 0.3404 | 0.4900 | 0.5200 | 0.2580 | 0.5000 |
+| **SVM (RBF)** | 0.3345 | 0.5400 | 0.5300 | 0.2790 | **0.5170** |
+| **Random Forest** | 0.2496 | 0.5100 | 0.6380 | 0.2720 | 0.2300 |
+| **KNN** | 0.2011 | 0.5600 | **0.7790** | **0.3430** | 0.2340 |
+| **AdaBoost** | 0.0036 | 0.4800 | 0.7300 | 0.0100 | 0.0020 |
+
+![Model Comparison](./spotifyDataVisualizations/model_comparison_labeled.png)
+
+#### Technical Analysis of Strategy A
+
+  * **F1-Score Stability:** The highest F1-score achieved was **0.3585** (Decision Tree). Surprisingly, this is nearly identical to our baseline LASSO model ($0.3580$), suggesting that the extra polynomial terms added more "noise" than "value."
+  * **ROC/AUC Insights:** The AUC values hovered between **0.48 and 0.58**. This indicates that the models are only slightly better than a random guess at distinguishing between the two classes, even with complex interaction terms.
+  * **The Complexity Penalty:** Models like **KNN** and **AdaBoost** showed high Accuracy but failed significantly on F1 and Recall. This confirms that adding more features actually made it harder for these algorithms to find a clean separation between churners and active users.
+
+#### Key Takeaway: More Features \!= Better Results
+
+Using a Polynomial set (200+ terms) of features did not yield very good results on the modeling front, so we switched to not using polynomial features. This resulted in a feature set of 22 features.
+
