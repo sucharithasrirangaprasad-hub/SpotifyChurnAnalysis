@@ -6,15 +6,7 @@
 In a competitive streaming landscape, acquiring a new customer is significantly more expensive than retaining an existing one. For a subscription-based service like Spotify, churn—the rate at which subscribers cancel their premium status—directly impacts long-term valuation and Monthly Recurring Revenue (MRR).
 
 #### Post-Identification Strategy
-Identifying "High-Risk" customers is only the first step. Once the model flags a user as likely to churn, the business intends to deploy targeted Retention Workflows, including:
-
-**Targeted Incentives:** Offering limited-time discounts or "3 months for the price of 1" deals to price-sensitive users.
-
-**Feature Education:** Sending automated push notifications highlighting premium features the user hasn't utilized (e.g., offline downloads or high-fidelity audio).
-
-**Product Feedback Loops:** Triggering micro-surveys to understand dissatisfaction before the user reaches the "cancel" button.
-
-**Personalized Content:** Using algorithmic "We Miss You" playlists to re-establish the habit of daily listening.
+Identifying "High-Risk" customers is only the first step. Once the model flags a user as likely to churn, the business intends to deploy targeted Retention Workflows. 
 
 #### Project Objective
 The objective of this project is to develop a predictive classifier that identifies potential churners with high reliability.
@@ -52,7 +44,7 @@ Regardless of the strategy, the following transformations were applied to the ra
 #### **Strategy A: Polynomial Features (The "Squared" Approach)**
 This strategy was built on the hypothesis that churn behavior isn't always linear. For example, a slight increase in ad exposure might not matter, but a "squared" increase might lead to an exponential rise in churn probability.
 * **Technique:** Generated **Polynomial Features of Degree 2**.
-* **Focus:** Specifically targeted **Squared Terms** ($x^2$) rather than just interaction terms ($x \times y$). 
+* **Focus:** Specifically targeted interaction terms ($x \times y$) rather than just **Squared Terms** ($x^2$). 
 * **Goal:** To capture "accelerated" behavioral trends, allowing the model to see if extreme levels of specific activities (like skipping) act as a much stronger churn trigger than moderate levels.
 
 #### **Strategy B: Lean Feature Set (Efficiency)**
@@ -112,5 +104,127 @@ In this iteration, we expanded the dataset significantly. While we expected the 
 
 #### Key Takeaway: More Features \!= Better Results
 
-Using a Polynomial set (200+ terms) of features did not yield very good results on the modeling front, so we switched to not using polynomial features. This resulted in a feature set of 22 features.
+In this second iteration, we hypothesized that the noise from 200+ polynomial terms was hindering the models. We streamlined the dataset to **22 core features** and introduced two hand-crafted behavioral metrics: **`ad_music_ratio`** and **`avg_song_length`**.
 
+#### Strategy B: Lean Feature Set Results
+
+Despite the cleaner data and specialized features, the performance remained largely unchanged from our initial baseline, as shown below:
+
+| Model | F1-Score | Recall | Precision | AUC | Accuracy |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **SVM (Winner)** | **0.3674** | 0.5338 | 0.2801 | 0.5277 | 0.5244 |
+| **Gradient Boosting** | 0.3441 | 0.5556 | 0.2492 | 0.4827 | 0.4519 |
+| **Balanced LR (Baseline)** | 0.3432 | 0.4879 | 0.2647 | 0.5075 | 0.5169 |
+| **Decision Tree** | 0.3414 | **0.5773** | 0.2424 | 0.4874 | 0.4238 |
+| **KNN** | 0.2833 | 0.2440 | **0.3378** | **0.5612** | 0.6806 |
+| **Random Forest** | 0.2574 | 0.2319 | 0.2892 | 0.5091 | 0.6538 |
+| **AdaBoost** | 0.0000 | 0.0000 | 0.0000 | 0.4817 | **0.7412** |
+
+![Model Comparison](./spotifyDataVisualizationsForFewerFeatures/Final_Model_Comparison_FewerFeatures.png)
+
+#### Findings & Analysis
+
+  * **Diminishing Returns on Feature Reduction:** Using fewer features **did not significantly help** improve the results. The F1-scores for the top performers (SVM and Decision Tree) stayed within the same range as the high-dimensional polynomial models, suggesting that the bottleneck is likely within the signal of the raw data itself rather than the quantity of features.
+  * **The "Ratio" Hypothesis:** We specifically introduced `ad_music_ratio` and `avg_song_length` to capture user frustration and engagement levels. However, these new features **did not help** break the performance ceiling, indicating that churn behavior in this dataset may be driven by factors not fully captured by these metrics (e.g., content variety or price sensitivity).
+  * **The Accuracy Trap Reconfirmed:** **AdaBoost** and **KNN** again achieved the highest Accuracy scores (up to **0.7412**), but they did so by failing to identify any churners correctly. This reinforces why we prioritized **F1-Score** and **Recall** to meet the business objective.
+
+#### Strategy Conclusion
+
+The transition from Strategy A (Complexity) to Strategy B (Efficiency) confirmed that for this specific Spotify churn dataset, the models are highly resistant to feature-level tuning. The **Decision Tree** from this lean set is our choice for deployment due to its marginally better balance of Precision and Recall and to avoid the complexity of 200+ features that do not give us a significant boost in f1 scores.
+
+### 6. Model Selection: The Decision Tree From Lean Strategy Champion
+
+After evaluating both strategies, the **Decision Tree** has been selected as the final deployment model for this project, surpassing the SVM and Gradient Boosting models.
+
+#### **Rationale for Selection**
+While the SVM achieved a marginally higher F1-score (0.3674 vs 0.3414), the Decision Tree was chosen for the following strategic reasons:
+
+* **Optimal Recall:** The Decision Tree achieved a **Recall of 0.5773**, the highest across all tested models. In a churn context, catching 57% of departing users is more valuable than the slight precision gain offered by the SVM.
+* **Operational Efficiency:** SVMs have high execution times ($O(n^2)$ to $O(n^3)$ complexity), which can become a bottleneck as the user base scales. The Decision Tree offers near-instantaneous inference.
+* **Interpretability:** Unlike "black-box" models like SVM or Gradient Boosting, the Decision Tree allows the business to see the exact logic gates (e.g., *if skips > 10 and ads > 5*) that lead to a churn prediction.
+
+### 7. Data Limitations & Feature Importance
+
+#### **The Correlation Gap**
+
+Before modeling, a correlation analysis was performed on the raw features against the target variable (is_churned). The resulting **Correlation Matrix** revealed a significant challenge: **no single feature showed a strong correlation with the target.** Most coefficients hovered near zero, indicating that churn in this dataset is not driven by a single "smoking gun" metric, but rather a complex combination of behaviors that are difficult for traditional models to isolate.
+
+![Correlation Matrix](./spotifyDataVisualizationsForFewerFeatures/full_feature_heatmap.png)
+
+#### **Model Feature Importance (Decision Tree)**
+
+The Decision Tree model confirmed this sparsity. Out of 22 available features, the model effectively ignored 19 of them, finding predictive "signal" in only three specific areas. This suggests that while we engineered new features like `ad_music_ratio`, they did not provide the breakthrough correlation needed to surpass the current F1-score ceiling.
+
+#### **Top 5 Most Influential Features**
+
+These features provided the most signal for the model. Note that after the top three, the predictive power drops to zero.
+
+| Rank | Feature | Importance | Business Insight |
+| :--- | :--- | :--- | :--- |
+| 1 | **skip\_rate** | **0.4281** | Primary indicator of content dissatisfaction. |
+| 2 | **avg\_song\_length** | **0.3518** | High risk for users who don't complete tracks. |
+| 3 | **age** | **0.2201** | Retention varies significantly by age demographic. |
+| 4 | listening\_time | 0.0000 | Total duration is not a predictor of churn. |
+| 5 | ads\_listened\_per\_week | 0.0000 | Ad volume did not differentiate churners in this model. |
+
+#### **Top 5 Least Influential Features**
+
+The model assigned **zero importance** to these features, effectively performing automated feature selection by ignoring them.
+
+| Rank | Feature | Importance |
+| :--- | :--- | :--- |
+| 18 | subscription\_type\_Free | 0.0000 |
+| 19 | subscription\_type\_Premium | 0.0000 |
+| 20 | subscription\_type\_Student | 0.0000 |
+| 21 | device\_type\_Mobile | 0.0000 |
+| 22 | device\_type\_Web | 0.0000 |
+
+![Feature Importance for Decision Tree](./spotifyDataVisualizationsForFewerFeatures/decision_tree_feature_drivers.png)
+
+### Business Recommendations & Next Steps
+
+Because the current data signal is relatively weak, the business should not rely solely on automated model actions. Instead, we recommend a dual-path strategy:
+
+#### **1. Immediate Retentional "Safety Nets"**
+
+Since the model identifies a specific profile (High Skips + Shorter Listening + Specific Age Bracket), Spotify should deploy **temporary, generic retention measures** for this segment:
+
+  * **Broad-Reach Incentives:** Apply generic "loyalty" discounts or extended trial periods to the high-risk group identified by the model.
+  * **User Experience Surveys:** For users flagged by the model, trigger qualitative surveys to identify "why" they are dissatisfied, as the current quantitative data (clicks/time) isn't telling the whole story.
+
+#### **2. Enhanced Data Collection**
+
+To break the performance plateau and achieve an F1-score \> 0.40, the business must collect more nuanced data points that likely have higher correlation with churn:
+
+  * **Customer Support Interactions:** Frequency and sentiment of support tickets.
+  * **Price Sensitivity Data:** History of interaction with "plan upgrade" or "plan comparison" pages.
+  * **Social/Sharing Metrics:** Whether the user interacts with friends or shares playlists (social "stickiness").
+  * **Content Diversity:** Whether the user is stuck in a "filter bubble" or exploring new genres.
+
+### **Final Conclusion**
+
+The **Decision Tree** provides a lightweight, interpretable starting point for churn prediction. While it successfully identifies the importance of `skip_rate` and `avg_song_length`, its limited feature reliance suggests that the next phase of this project should focus on **Data Enrichment** rather than further algorithmic tuning.
+
+### 8. Visualizations
+
+#### **1. Data Foundation & Exploratory Visuals**
+
+  * **Target Class Distribution:** A bar chart showing the **74/26 split** between active and churned users, justifying our use of balanced class weights. Bar charts to show the distribution of categorical columns between active and churned users
+  * **Correlation Heatmap:** A matrix showing the lack of strong linear relationships between features and churn, providing the evidence for why simple models initially struggled.
+  * **Ad-Exposure Boxplots:** Visualizations that identified significant outliers and skewness in the `ads_listened_per_week` column for free-tier users.
+
+#### **2. Strategy A: Polynomial Features (Complexity)**
+
+  * **Polynomial Performance Comparison:** A grouped bar chart comparing multiple models (Decision Tree, LASSO, RF, etc.) when trained on **100+ interaction terms**.
+  * **ROC/AUC Curves:** Probability-based charts showing the "Performance Ceiling," where AUC values hovered around **0.53–0.58** despite the high dimensionality.
+
+#### **3. Strategy B: Fewer Features (Efficiency)**
+
+  * **Final Model Metrics Chart:** A visualization comparing F1-Score, Recall, and Precision for the lean **22-feature set**, identifying the Decision Tree and SVM as the top contenders.
+  * **Decision Tree Feature Drivers:** A horizontal bar chart contrasting the **Top 5 and Bottom 5 features**, which visually proves that the model ignores 19 out of 22 inputs.
+  * **F1-Score Stability Plot:** A chart comparing the "Lean" strategy against the "Polynomial" strategy, showing that results stayed stable even when we removed over 80 features.
+
+#### **4. Model Evaluation & Error Analysis**
+
+  * **Confusion Matrix (Decision Tree):** A heatmap showing the trade-off between **False Positives** and **True Positives**, helping us decide to prioritize Recall for business retention.
+  * **F1-Score vs. Threshold Plot:** A line graph demonstrating how changing the classification threshold (moving away from the default **0.5**) affects the balance between Precision and Recall.
